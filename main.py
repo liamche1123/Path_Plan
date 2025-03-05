@@ -19,7 +19,7 @@ for episode in range(episodes):
         action = agent.act(state)  #  action [-π/6, π/6] angle change
 
         # action, new state
-        next_state, reward, done, _ = env.step([action])  # 需要封装成列表
+        next_state, reward, done, _ = env.step([action])
 
         # store experience
         agent.remember(state, action, reward, next_state, done)
