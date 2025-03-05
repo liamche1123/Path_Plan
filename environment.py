@@ -3,84 +3,86 @@ import matplotlib.pyplot as plt
 import gym
 from gym import spaces
 
-
 class ContinuousPathPlanningEnv(gym.Env):
     def __init__(self):
         super(ContinuousPathPlanningEnv, self).__init__()
 
-        # 地图参数
-        self.map_size = 5.0  # 地图大小为 5x5 的连续空间
-        self.start = np.array([1.0, 0.0], dtype=np.float32)  # 起点
-        self.goal = np.array([4.0, 4.0], dtype=np.float32)  # 目标点
-        self.goal_radius = 0.2  # 到达目标点的判定半径
-        self.obstacles = [np.array([2.0, 2.0], dtype=np.float32)]  # 障碍物位置
+        # Map parameters
+        self.map_size = 5.0
+        self.start = np.array([1.0, 0.0], dtype=np.float32)
+        self.goal = np.array([4.0, 4.0], dtype=np.float32)
+        self.goal_radius = 0.2
+        self.obstacles = [np.array([2.0, 2.0], dtype=np.float32)]
 
-        # 代理初始位置
+        # Agent parameters
         self.agent_position = self.start.copy()
-        self.path = [self.agent_position.copy()]  # 记录路径
+        self.agent_heading = 0.0  # Initial heading angle (in radians)
+        self.velocity = 0.1  # Fixed speed of movement
+        self.path = [self.agent_position.copy()]
 
-        # 动作空间：连续的两个值，表示 x 和 y 方向的移动
-        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)
+        # Action space: Heading angle change in radians
+        self.action_space = spaces.Box(low=-np.pi/6, high=np.pi/6, shape=(1,), dtype=np.float32)
 
-        # 观察空间：代理的当前位置 (x, y)
-        self.observation_space = spaces.Box(low=0.0, high=self.map_size, shape=(2,), dtype=np.float32)
+        # Observation space: Position (x, y) and heading angle
+        self.observation_space = spaces.Box(low=np.array([0.0, 0.0, -np.pi]),
+                                            high=np.array([self.map_size, self.map_size, np.pi]),
+                                            dtype=np.float32)
 
     def reset(self):
-        # 重置代理位置到起点
         self.agent_position = self.start.copy()
+        self.agent_heading = 0.0
         self.path = [self.agent_position.copy()]
-        return self.agent_position
+        return np.array([self.agent_position[0], self.agent_position[1], self.agent_heading], dtype=np.float32)
 
     def step(self, action):
-        # 解析动作
-        dx, dy = action
+        # Update heading angle
+        self.agent_heading += action[0]
+        self.agent_heading = np.clip(self.agent_heading, -np.pi, np.pi)
 
-        # 更新代理位置
+        # Compute new position based on heading and velocity
+        dx = self.velocity * np.cos(self.agent_heading)
+        dy = self.velocity * np.sin(self.agent_heading)
         new_position = self.agent_position + np.array([dx, dy], dtype=np.float32)
 
-        # 边界检查，确保代理不超出地图范围
+        # Boundary check
         new_position = np.clip(new_position, 0.0, self.map_size)
 
-        # 检查是否撞到障碍物
-        collision = False
-        for obstacle in self.obstacles:
-            if np.linalg.norm(new_position - obstacle) < 0.5:  # 障碍物半径
-                collision = True
-                break
+        # Check collision with obstacles
+        collision = any(np.linalg.norm(new_position - obs) < 0.5 for obs in self.obstacles)
 
-        # 奖励机制
-        if np.linalg.norm(new_position - self.goal) < self.goal_radius:  # 到达目标点
-            reward = 100.0
+        # Compute reward
+        distance_old = np.linalg.norm(self.agent_position - self.goal)
+        distance_new = np.linalg.norm(new_position - self.goal)
+
+        if distance_new < self.goal_radius:
+            reward = 100.0  # Reached goal
             done = True
-        elif collision:  # 撞到障碍物
-            reward = -50.0
+        elif collision:
+            reward = -50.0  # Collision penalty
             done = False
-        else:  # 普通移动
-            distance_old = np.linalg.norm(self.agent_position - self.goal)
-            distance_new = np.linalg.norm(new_position - self.goal)
-            reward = (distance_old - distance_new) * 10 - 0.1  # 靠近目标加分
+        else:
+            reward = (distance_old - distance_new) * 10 - 0.1  # Moving towards the goal
             done = False
 
-        # 更新代理位置
+        # Update agent position
         self.agent_position = new_position
         self.path.append(self.agent_position.copy())
 
-        return self.agent_position, reward, done, {}
+        return np.array([self.agent_position[0], self.agent_position[1], self.agent_heading], dtype=np.float32), reward, done, {}
 
     def render(self, episode):
         plt.figure(figsize=(5, 5))
-        # 绘制障碍物
+        # Draw obstacles
         for obs in self.obstacles:
             plt.scatter(obs[0], obs[1], c='black', marker='s', s=200, label="Obstacle" if obs is self.obstacles[0] else "")
-        # 绘制起点
+        # Draw start and goal
         plt.scatter(self.start[0], self.start[1], c='blue', marker='o', s=200, label="Start")
-        # 绘制目标点
         plt.scatter(self.goal[0], self.goal[1], c='red', marker='*', s=200, label="Goal")
-        # 绘制路径
+        # Draw path
         path = np.array(self.path)
         plt.plot(path[:, 0], path[:, 1], c='green', linestyle='-', linewidth=2, label="Path")
         plt.scatter(path[:, 0], path[:, 1], c='green', marker='.', s=100)
-        # 设置图形属性
+        # Set plot properties
         plt.xlim(0, self.map_size)
         plt.ylim(0, self.map_size)
         plt.grid(True)
