@@ -31,10 +31,16 @@ class DQNAgent:
         self.batch_size = 32  # batch size
         self.memory = deque(maxlen=5000)  # buffer size
 
-        # model and optimizer
+        # model and target model
         self.model = DQN(state_size, 1)  # angle change
+        self.target_model = DQN(state_size, 1)  # target network
+        self.target_model.load_state_dict(self.model.state_dict())  # initialize target network
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.SmoothL1Loss()  # Huber loss function
+
+        # target network update frequency
+        self.target_update_freq = 10
+        self.update_counter = 0
 
     def remember(self, state, action, reward, next_state, done):
         """experience replay buffer"""
@@ -67,7 +73,7 @@ class DQNAgent:
 
         # target Q-Value
         with torch.no_grad():
-            next_q_values = self.model(next_states)
+            next_q_values = self.target_model(next_states)  # use target network
             target_q_values = rewards + self.gamma * next_q_values * (1 - dones)
 
         # current Q-Value
@@ -82,3 +88,8 @@ class DQNAgent:
         # decline the exploration rate
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
+
+        # update target network
+        self.update_counter += 1
+        if self.update_counter % self.target_update_freq == 0:
+            self.target_model.load_state_dict(self.model.state_dict())

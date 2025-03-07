@@ -47,8 +47,8 @@ class ContinuousPathPlanningEnv(gym.Env):
         # Boundary check
         new_position = np.clip(new_position, 0.0, self.map_size)
 
-        # Check collision with obstacles
-        collision = any(np.linalg.norm(new_position - obs) < 0.5 for obs in self.obstacles)
+        # Check collision with obstacles (enlarged obstacle size)
+        collision = any(np.linalg.norm(new_position - obs) < 0.8 for obs in self.obstacles)  # increased from 0.5 to 0.8
 
         # Compute reward
         distance_old = np.linalg.norm(self.agent_position - self.goal)
@@ -72,9 +72,10 @@ class ContinuousPathPlanningEnv(gym.Env):
 
     def render(self, episode):
         plt.figure(figsize=(5, 5))
-        # Draw obstacles
+        # Draw obstacles (enlarged size)
         for obs in self.obstacles:
-            plt.scatter(obs[0], obs[1], c='black', marker='s', s=200, label="Obstacle" if obs is self.obstacles[0] else "")
+            circle = plt.Circle((obs[0], obs[1]), radius=0.8, color='black', alpha=0.5, label="Obstacle" if obs is self.obstacles[0] else "")
+            plt.gca().add_patch(circle)
         # Draw start and goal
         plt.scatter(self.start[0], self.start[1], c='blue', marker='o', s=200, label="Start")
         plt.scatter(self.goal[0], self.goal[1], c='red', marker='*', s=200, label="Goal")

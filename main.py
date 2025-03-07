@@ -5,7 +5,7 @@ import numpy as np
 env = ContinuousPathPlanningEnv()
 agent = DQNAgent(state_size=3, action_bound=np.pi / 6)
 
-episodes = 500
+episodes = 1000
 best_reward = -float("inf")
 best_path = None
 best_episode = None
